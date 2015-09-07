@@ -111,7 +111,7 @@ boardCompare (a, _) (b, _) = compare (swap a) (swap b)
     swap (x, y) = (y, x)
 
 removeObject :: MonadState Board m => Loc -> m ()
-removeObject loc = modify $ sortBy boardCompare . removeAssoc loc
+removeObject loc = modify $ removeAssoc loc
 
 placeObject :: MonadState Board m => Loc -> Object -> m ()
 placeObject loc obj = do
