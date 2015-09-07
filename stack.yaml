@@ -1,0 +1,14 @@
+flags: {}
+packages:
+- '.'
+- location:
+    git: https://www.github.com/ku-fpg/blank-canvas
+    commit: 79180b767217a3ee796a394ae5e69c12f6f5bcdc
+  extra-dep: true
+- location:
+    git: https://www.github.com/ku-fpg/kansas-comet
+    commit: 1e445b347e0d29e060aa2ee74aa1e394e6badf14
+  extra-dep: true
+extra-deps:
+- blank-canvas-0.5
+resolver: lts-3.4
