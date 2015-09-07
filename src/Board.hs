@@ -88,14 +88,6 @@ renderBoard width height = fillIn (0, 0)
             Just obj -> renderObject obj : fillIn (nextLoc loc) (removeAssoc loc as)
             _        -> ' '              : fillIn (nextLoc loc) as
 
-    -- fillIn loc@(currX, currY) (((x, y), obj):as)
-    --   | currX >= width-1         = '\n' : fillIn (nextLoc loc) as
-    --   | currY >= height          = []
-    --   | (currX, currY) == (x, y) = renderObject obj : fillIn (nextLoc loc) as
-    --   | otherwise                = ' '              : fillIn (nextLoc loc) as
-    -- fillIn (currX, currY) [] =
-    --   replicate (width-currY) ' ' ++ unlines (replicate (height-currY) (replicate width ' '))
-
 moveObject :: MonadState Board m => Loc -> Loc -> m ()
 moveObject from to = do
   objM <- getObject from
@@ -116,7 +108,7 @@ removeObject loc = modify $ removeAssoc loc
 placeObject :: MonadState Board m => Loc -> Object -> m ()
 placeObject loc obj = do
   removeObject loc
-  modify $ (insertBy boardCompare (loc, obj))
+  modify $ insertBy boardCompare (loc, obj)
 
 getPlayerLoc :: MonadState Board m => m Loc
 getPlayerLoc = do
