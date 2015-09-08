@@ -1,12 +1,23 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Board
   where
 
 import           Control.Monad.State
+
 import           Data.List
+
 import           Data.Text (Text)
 import qualified Data.Text as Text
+
+import           Data.Map (Map)
+import qualified Data.Map as Map
+
+import           Lens.Micro
+import           Lens.Micro.Mtl
+import           Lens.Micro.TH
+import           Lens.Micro.GHC
 
 testBoard :: String
 testBoard
@@ -34,8 +45,7 @@ testBoard2
 
 data Object
   = Wall
-  | Player PlayerState
-  | Goal   GoalState
+  | Goal GoalState
   | Box
   deriving (Show) -- NOTE: Show is for debugging purposes
 
@@ -46,33 +56,44 @@ data GoalState   = FreeGoal | TakenGoal
 
 type Loc = (Int, Int)
 
-type Board = [(Loc, Object)]
+data Board
+  = Board
+    { _boardData   :: Map Loc Object
+    , _playerLoc   :: Loc
+    , _playerState :: PlayerState
+    }
+makeLenses ''Board
 
 parseBoard :: String -> Board
 parseBoard = go (0, 0)
   where
     go     (_, y) ('\n':as) =                        go (0, y+1) as
     go     (x, y) (' ' :as) =                        go (x+1, y) as
-    go loc@(x, y) (a   :as) = (loc, parseObject a) : go (x+1, y) as
-    go _          []        = []
+    go loc@(x, y) (a   :as) = parseObject loc a $ go (x+1, y) as
+    go _          []        = Board { _boardData = Map.empty }
 
-    parseObject '#' = Wall
-    parseObject '@' = Player OffGoal
-    parseObject '+' = Player OnGoal
-    parseObject 'o' = Box
-    parseObject '.' = Goal FreeGoal
-    parseObject '*' = Goal TakenGoal
-    parseObject c   = error $ "Unrecognized game object: " ++ [c]
+    parseObject loc '#' = boardData %~ (Map.insert loc Wall)
+    parseObject loc '@' =
+      (playerLoc .~ loc)
+      . (playerState .~ OffGoal)
+    parseObject loc '+' =
+      (playerLoc .~ loc)
+      . (playerState .~ OnGoal)
+    parseObject loc 'o' = boardData %~ (Map.insert loc Box)
+    parseObject loc '.' = boardData %~ (Map.insert loc (Goal FreeGoal))
+    parseObject loc '*' = boardData %~ (Map.insert loc (Goal TakenGoal))
+    parseObject _   c   = error $ "Unrecognized game object: " ++ [c]
 
 renderBoard :: Int -> Int -> Board -> String
-renderBoard width height = fillIn (0, 0)
+renderBoard width height board = fillIn (0, 0) . Map.assocs $ _boardData board
   where
     renderObject Wall             = '#'
-    renderObject (Player OffGoal) = '@'
-    renderObject (Player OnGoal ) = '+'
     renderObject Box              = 'o'
     renderObject (Goal FreeGoal)  = '.'
     renderObject (Goal TakenGoal) = '*'
+
+    renderPlayer OffGoal = '@'
+    renderPlayer OnGoal  = '+'
 
     nextLoc (x, y)
       | x == width = (0, y+1)
@@ -83,6 +104,7 @@ renderBoard width height = fillIn (0, 0)
     fillIn loc@(currX, currY) as
       | currX >= width   = '\n' : fillIn (nextLoc loc) as
       | currY >= height  = []
+      | loc == _playerLoc board = renderPlayer (_playerState board) : fillIn (nextLoc loc) (removeAssoc loc as)
       | otherwise        =
           case lookup loc as of
             Just obj -> renderObject obj : fillIn (nextLoc loc) (removeAssoc loc as)
@@ -103,26 +125,18 @@ boardCompare (a, _) (b, _) = compare (swap a) (swap b)
     swap (x, y) = (y, x)
 
 removeObject :: MonadState Board m => Loc -> m ()
-removeObject loc = modify $ removeAssoc loc
+removeObject loc = boardData %= Map.delete loc
 
 placeObject :: MonadState Board m => Loc -> Object -> m ()
 placeObject loc obj = do
   removeObject loc
-  modify $ insertBy boardCompare (loc, obj)
+  boardData %= Map.insert loc obj
 
 getPlayerLoc :: MonadState Board m => m Loc
-getPlayerLoc = do
-  elements <- gets $ filter (isPlayer . snd)
-  case elements of
-    [(loc, _)] -> return loc
-    [] -> do b <- get ; error $ "Player not found on game board: " ++ show b
-    _  -> error "Multiple player locations on game board."
-  where
-    isPlayer (Player _) = True
-    isPlayer _          = False
+getPlayerLoc = use playerLoc
 
 getObject :: MonadState Board m => Loc -> m (Maybe Object)
-getObject = gets . lookup
+getObject loc = gets $ Map.lookup loc . _boardData
 
 removeAssoc :: Eq a => a -> [(a, b)] -> [(a, b)]
 removeAssoc target ((x, y):rest)

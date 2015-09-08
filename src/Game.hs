@@ -6,33 +6,40 @@ import           Board
 
 import           Control.Monad.State
 
+import qualified Data.Map as Map
+
+import           Lens.Micro
+import           Lens.Micro.Mtl
+
+import Debug.Trace
+
 data Direction = U | D | L | R
 
 type Game = StateT Board IO
 
 isWon :: MonadState Board m => m Bool
-isWon = gets (not . any isFreeGoal)
+isWon = gets (all isTaken . traceShowId . Map.assocs . _boardData)
   where
-    isFreeGoal (_, Goal FreeGoal) = True
-    isFreeGoal _                  = False
+    isTaken (_, Goal FreeGoal) = False
+    isTaken _                  = True
 
 movePlayer :: MonadState Board m => Direction -> m ()
 movePlayer dir = do
-  playerLoc <- getPlayerLoc
-  let newLoc = moveInDir dir playerLoc
+  currPlayerLoc <- getPlayerLoc
+  let newLoc = moveInDir dir currPlayerLoc
 
   newLocObjectM <- getObject newLoc
   case newLocObjectM of
     Nothing -> do
-      removePlayer playerLoc
-      placeObject newLoc (Player OffGoal)
+      playerState .= OffGoal
+      playerLoc .= newLoc
 
     Just newLocObject ->
       case newLocObject of
         Wall -> return ()
         Goal FreeGoal -> do
-          removePlayer playerLoc
-          placeObject newLoc (Player OnGoal)
+          playerState .= OnGoal
+          playerLoc .= newLoc
 
         Box -> do
           wasMoved <- moveBox dir newLoc
@@ -47,17 +54,6 @@ movePlayer dir = do
               placeObject newLoc (Goal FreeGoal)
               movePlayer dir
             else return ()
-
-        Player _ -> error "Internal error: Player ran into themselves"
-
-removePlayer :: MonadState Board m => Loc -> m ()
-removePlayer loc = do
-  obj <- getObject loc
-  case obj of
-    Just (Player OnGoal) -> do
-      removeObject loc
-      placeObject loc $ Goal FreeGoal
-    _ -> removeObject loc
 
 moveBox :: MonadState Board m => Direction -> Loc -> m Bool
 moveBox dir loc = do
@@ -79,7 +75,6 @@ moveBox dir loc = do
             Wall           -> return False
             Box            -> return False
             Goal TakenGoal -> return False
-            Player _       -> error "Internal error: Box collided with player moving box"
             Goal FreeGoal -> do
               removeObject loc
               placeObject newLoc (Goal TakenGoal)
