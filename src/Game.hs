@@ -11,14 +11,12 @@ import qualified Data.Map as Map
 import           Lens.Micro
 import           Lens.Micro.Mtl
 
-import Debug.Trace
-
 data Direction = U | D | L | R
 
 type Game = StateT Board IO
 
 isWon :: MonadState Board m => m Bool
-isWon = gets (all isTaken . traceShowId . Map.assocs . _boardData)
+isWon = gets (all isTaken . Map.assocs . _boardData)
   where
     isTaken (_, Goal FreeGoal) = False
     isTaken _                  = True

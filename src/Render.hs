@@ -1,5 +1,6 @@
 module Render
   (renderGame
+  ,renderInstructions
   ,blankRender
   ,wonMessage
   )
@@ -15,7 +16,8 @@ import qualified Data.Text as Text
 
 import           Data.List
 
-import           Graphics.Blank
+import           Graphics.Blank hiding (fillStyle, strokeStyle)
+import           Graphics.Blank.Style
 
 movementInstructions :: String
 movementInstructions
@@ -45,19 +47,39 @@ wonMessage
       ]
 
 renderGame :: DeviceContext -> Double -> (Int, Int) -> (Double, Double) -> Board -> IO ()
-renderGame context fontSize (width, height) startPoint@(x, y) board = do
-  blankRender context fontSize startPoint . pack $ renderBoard width height board
+renderGame context fontSize (width, height) startPoint board = do
+  blankRender True white context fontSize startPoint . pack $ renderBoard width height board
 
-  let moveInstrWidth = fromIntegral . maximum . map length $ lines movementInstructions
-  blankRender context fontSize (((fromIntegral width * fontSize) - x - moveInstrWidth) / 2
-                               , y + (fromIntegral height * fontSize) + (fontSize * 2))
+renderInstructions :: DeviceContext -> Double -> (Int, Int) -> (Double, Double) -> IO ()
+renderInstructions context fontSize (width, height) (x, y) =
+  blankRender False
+              white
+              context
+              fontSize
+              (((fromIntegral width * fontSize) - x - moveInstrWidth) / 2
+              , y + (fromIntegral height * fontSize) + (fontSize * 2))
             $ pack movementInstructions
+  where
+    moveInstrWidth = fromIntegral . maximum . map length $ lines movementInstructions
 
-blankRender :: DeviceContext -> Double -> (Double, Double) -> Text -> IO ()
-blankRender context fontSize startPoint t = do
+blankRender :: Style style => Bool -> style -> DeviceContext -> Double -> (Double, Double) -> Text -> IO ()
+blankRender clearScreen style context fontSize startPoint t = do
   send context $ do
+    when clearScreen $ do
+      fillStyle black
+      fillRect (0, 0, w, h)
+
+    fillStyle style
+
     font . pack $ show (ceiling fontSize) ++ "pt Courier"
     render fontSize startPoint t
+  where
+    (w, h) = textBlockSize t fontSize
+
+textBlockSize :: Text -> Double -> (Double, Double)
+textBlockSize text fontSize =
+  -- XXX: Why is the '+ 2' necessary here?
+  (fromIntegral (Text.length text) * fontSize, fromIntegral (length (Text.lines text) + 2) * fontSize)
 
 render :: Double -> (Double, Double) -> Text -> Canvas ()
 render fontSize (startingX, startingY) t

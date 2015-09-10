@@ -45,16 +45,17 @@ main = do
     let w = Blank.width context
         h = Blank.height context
 
-    send context $ fillStyle black
-    send context $ fillRect (0, 0, w, h)
+    send context $ do
+      fillStyle black
+      fillRect (0, 0, w, h)
+
+      fillStyle white
+
+    renderInstructions context fontSize (width, height) startPoint
 
     flip evalStateT (parseBoard boardStr) $ do
       let redraw = do
-            liftIO . send context $ fillStyle black
-            liftIO . send context $ fillRect (0, 0, w, h)
-
             currBoard <- get
-            liftIO . send context $ fillStyle white
             liftIO $ renderGame context fontSize (width, height) startPoint currBoard
 
       redraw
@@ -75,10 +76,10 @@ main = do
         won <- isWon
         if won
           then do
-            liftIO . send context $ fillStyle black
-            liftIO . send context $ fillRect (0, 0, w, h)
             liftIO $ putStrLn "You won!"
-            liftIO . send context $ fillStyle red
-            liftIO $ blankRender context 15 (70, 150) wonMessage
+            lift . send context $ do
+              fillStyle black
+              fillRect (0, 0, w, h)
+            liftIO $ blankRender False red context 15 (70, 150) wonMessage
             liftIO exitSuccess
           else return ()
